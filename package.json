@@ -1,24 +1,30 @@
 {
-  "name": "temp-folder",
-  "version": "0.1.0",
-  "private": true,
+  "name": "poko",
+  "version": "1.0.0",
+  "description": "This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).",
+  "main": "index.js",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jpccrp/poko.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jpccrp/poko/issues"
+  },
+  "homepage": "https://github.com/jpccrp/poko#readme",
+  "devDependencies": {
+    "prisma": "^4.12.0"
   },
   "dependencies": {
     "@prisma/client": "^4.12.0",
     "bcrypt": "^5.1.0",
-    "eslint": "8.37.0",
-    "eslint-config-next": "13.2.4",
-    "jsonwebtoken": "^9.0.0",
-    "next": "13.2.4",
-    "react": "18.2.0",
-    "react-dom": "18.2.0"
-  },
-  "devDependencies": {
-    "prisma": "^4.12.0"
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0"
   }
 }
