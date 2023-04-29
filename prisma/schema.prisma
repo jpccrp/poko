@@ -1,45 +1,65 @@
 generator client {
-provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
+
 datasource db {
-provider = "sqlite"
-url = env("DATABASE_URL")
+  provider = "sqlite"
+  url = env("DATABASE_URL")
 }
+
 model Employee {
-id Int @id @default(autoincrement())
-firstName String
-lastName String
-username String @unique
-password String
-email String @unique
-departmentId Int
-department Department @relation(fields: [departmentId], references: [id])
-punches Punch[]
-roles EmployeeRole[]
-isAdmin Boolean @default(false)
+  id           Int             @id @default(autoincrement())
+  firstName    String
+  lastName     String
+  username     String          @unique
+  password     String
+  email        String          @unique
+  departmentId Int
+  department   Department      @relation(fields: [departmentId], references: [id])
+  punches      Punch[]
+  roles        EmployeeRole[]
+  isAdmin      Boolean         @default(false)
+  departmentRoles DepartmentRole[] // Add this line to associate DepartmentRole with Employee
 }
+
+
 model Department {
-id Int @id @default(autoincrement())
-name String @unique
-employees Employee[]
+  id Int @id @default(autoincrement())
+  name String @unique
+  employees Employee[]
+  roles DepartmentRole[] // quem pode ver relatorios
 }
+
 model Punch {
-id Int @id @default(autoincrement())
-employeeId Int
-employee Employee @relation(fields: [employeeId], references: [id])
-timestamp DateTime
-type String
-note String?
+  id Int @id @default(autoincrement())
+  employeeId Int
+  employee Employee @relation(fields: [employeeId], references: [id])
+  timestamp DateTime
+  type String
+  note String?
 }
+
 model Role {
-id Int @id @default(autoincrement())
-name String @unique
-employees EmployeeRole[]
+  id Int @id @default(autoincrement())
+  name String @unique
+  employees EmployeeRole[]
+  departments DepartmentRole[] // ah pois é bebé
 }
+
 model EmployeeRole {
-employeeId Int
-roleId Int
-employee Employee @relation(fields: [employeeId], references: [id])
-role Role @relation(fields: [roleId], references: [id])
-@@id([employeeId, roleId])
+  employeeId Int
+  roleId Int
+  employee Employee @relation(fields: [employeeId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+  @@id([employeeId, roleId])
+}
+
+model DepartmentRole {
+  departmentId Int
+  roleId       Int
+  role         Role       @relation(fields: [roleId], references: [id])
+  department   Department @relation(fields: [departmentId], references: [id])
+  employeeId   Int        // Add this line to create a relationship between DepartmentRole and Employee
+  employee     Employee   @relation(fields: [employeeId], references: [id]) // Add this line to create a relationship between DepartmentRole and Employee
+  @@id([departmentId, roleId])
 }
