@@ -19,15 +19,14 @@ model Employee {
   punches      Punch[]
   roles        EmployeeRole[]
   isAdmin      Boolean         @default(false)
-  departmentRoles DepartmentRole[] // Add this line to associate DepartmentRole with Employee
+  departmentRoles DepartmentRole[]  @relation("DepartmentRoleToEmployee")
 }
-
 
 model Department {
   id Int @id @default(autoincrement())
   name String @unique
   employees Employee[]
-  roles DepartmentRole[] // quem pode ver relatorios
+  roles DepartmentRole[]
 }
 
 model Punch {
@@ -43,7 +42,7 @@ model Role {
   id Int @id @default(autoincrement())
   name String @unique
   employees EmployeeRole[]
-  departments DepartmentRole[] // ah pois é bebé
+  departments DepartmentRole[]
 }
 
 model EmployeeRole {
@@ -59,7 +58,7 @@ model DepartmentRole {
   roleId       Int
   role         Role       @relation(fields: [roleId], references: [id])
   department   Department @relation(fields: [departmentId], references: [id])
-  employeeId   Int        // Add this line to create a relationship between DepartmentRole and Employee
-  employee     Employee   @relation(fields: [employeeId], references: [id]) // Add this line to create a relationship between DepartmentRole and Employee
+  employee     Employee   @relation("DepartmentRoleToEmployee", fields: [employeeId], references: [id])
+  employeeId   Int
   @@id([departmentId, roleId])
 }

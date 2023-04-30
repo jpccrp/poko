@@ -4,6 +4,10 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const path = require('path');
+const { writeFileSync } = require('fs');
+const { tmpdir } = require('os');
+const { join } = require('path');
+const { parseISO, isWithinInterval } = require('date-fns');
 
 
 // Initialize a new PrismaClient instance for database operations
@@ -59,7 +63,7 @@ app.post('/login', async (req, res) => {
   res.json({ token });
 });
 
-// Protected route example
+// Protected route 
 app.get('/protected', async (req, res) => {
   const token = req.headers['authorization'];
 
@@ -81,6 +85,142 @@ app.get('/protected', async (req, res) => {
 
   res.json({ user });
 });
+
+// Populate departments dropdown
+app.get('/admin/departments', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token provided.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  const decoded = verifyToken(token);
+
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid token.' });
+  }
+
+  const adminUser = await prisma.employee.findUnique({ where: { id: decoded.id } });
+
+  if (!adminUser || !adminUser.isAdmin) {
+    return res.status(403).json({ error: 'Access denied. User is not an admin.' });
+  }
+
+  const departments = await prisma.department.findMany();
+  res.json(departments);
+});
+
+// Create user route
+app.post('/admin/createUser', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token provided.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  const decoded = verifyToken(token);
+
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid token.' });
+  }
+
+  const adminUser = await prisma.employee.findUnique({ where: { id: decoded.id } });
+
+  if (!adminUser || !adminUser.isAdmin) {
+    return res.status(403).json({ error: 'Access denied. User is not an admin.' });
+  }
+
+  const { firstName, lastName, username, password, email, departmentId } = req.body;
+
+  if (!firstName || !lastName || !username || !password || !email) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = await prisma.employee.create({
+    data: {
+      firstName,
+      lastName,
+      username,
+      password: hashedPassword,
+      email,
+      department: {
+        connect: {
+          id: departmentId,
+        },
+      },
+    },
+  });
+  
+  res.json({ user: newUser });  
+});
+
+
+// Reports route
+app.get('/employees', async (req, res) => {
+  const token = req.headers['authorization'];
+
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided.' });
+  }
+
+  const decoded = verifyToken(token);
+
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid token.' });
+  }
+
+  const employees = await prisma.employee.findMany({ select: { id: true, firstName: true, lastName: true } });
+  res.json(employees);
+});
+
+app.post('/attendance', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token provided.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid token.' });
+  }
+
+  const { startDate, endDate, employeeIds } = req.body;
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+
+  const punches = await prisma.punch.findMany({
+    where: {
+      employeeId: {
+        in: employeeIds,
+      },
+    },
+    include: {
+      employee: true,
+    },
+  });
+
+  const attendanceData = punches
+    .filter(punch => isWithinInterval(parseISO(punch.timestamp), { start, end }))
+    .map(punch => ({
+      id: punch.id,
+      employeeName: `${punch.employee.firstName} ${punch.employee.lastName}`,
+      timestamp: punch.timestamp,
+      type: punch.type,
+      note: punch.note,
+    }));
+
+  res.json(attendanceData);
+});
+
 
 // Punch route
 app.post('/punch', async (req, res) => {

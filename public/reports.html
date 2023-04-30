@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>TREVO HRM APP - Reports</title>
+  <meta name="description" content="">
+  <meta name="author" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="reports">
+    <h1>Attendance Reports</h1>
+    <label for="startDate">Start Date:</label>
+    <input type="date" id="startDate">
+    <label for="endDate">End Date:</label>
+    <input type="date" id="endDate">
+    <label for="employeeSelect">Employees:</label>
+    <select id="employeeSelect" multiple>
+      <!-- Employee options will be loaded dynamically -->
+    </select>
+    <button id="generateReport">Generate Report</button>
+  </div>
+  <script src="reports.js"></script>
+</body>
+</html>
