@@ -65,43 +65,63 @@ async function loadEmployees() {
   }
 }
 
+// for the excel report: Generate a date range between the provided start and end dates 
+function generateDateRange(start, end) {
+  const result = [];
+  let currentDate = start;
+
+  while (currentDate <= end) {
+    result.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return result;
+}
 
 // Generate an Excel report using the provided attendance data
 function generateExcelReport(attendanceData) {
   const workbook = XLSX.utils.book_new();
   const sheetName = 'Attendance';
 
+  const startDate = new Date(document.getElementById('startDate').value);
+  const endDate = new Date(document.getElementById('endDate').value);
+  const dateRange = generateDateRange(startDate, endDate);
+
   const processedData = attendanceData.reduce((acc, curr) => {
-    if (!acc[curr.employeeName]) {
-      acc[curr.employeeName] = [];
+    if (!acc[curr.employeeId]) {
+      acc[curr.employeeId] = {
+        name: curr.employeeName,
+        punches: [],
+      };
     }
-    acc[curr.employeeName].push(curr);
+    acc[curr.employeeId].punches.push(curr);
     return acc;
   }, {});
 
-  const rows = [['Employee', 'Date', 'Type', 'Worked Hours']];
-  
+  const rows = [['Employee', 'Date', 'Punch In', 'Punch Out for Lunch', 'Punch in from Lunch', 'Punch Out', 'Worked Hours']];
+
   for (const employee in processedData) {
-    let workedHours = 0;
-    let lastPunchInTime = null;
-    const punches = processedData[employee].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const employeeData = processedData[employee];
 
-    for (let i = 0; i < punches.length; i++) {
-      const punch = punches[i];
-      const date = new Date(punch.timestamp).toISOString().split('T')[0];
-      const type = punch.type;
+    dateRange.forEach((date) => {
+      const punchesForDate = employeeData.punches.filter((punch) =>
+        isSameDay(new Date(punch.timestamp), date)
+      );
 
-      if ((type === 'Punch In' || type === 'Punch in returning from lunch') && (i === 0 || (punches[i - 1].type !== 'Punch In' && punches[i - 1].type !== 'Punch in returning from lunch'))) {
-        lastPunchInTime = new Date(punch.timestamp);
-      } else if ((type === 'Punch out for lunch' || type === 'Punch Out') && (i === 0 || (punches[i - 1].type !== 'Punch out for lunch' && punches[i - 1].type !== 'Punch Out')) && lastPunchInTime !== null) {
-        const punchOutTime = new Date(punch.timestamp);
-        const timeDifference = (punchOutTime - lastPunchInTime) / 1000 / 60 / 60; // to hours
-        workedHours += timeDifference;
-        lastPunchInTime = null;
+      const punchIn = punchesForDate.find(punch => punch.type === 'Punch In') || {};
+      const punchOutLunch = punchesForDate.find(punch => punch.type === 'Punch Out for Lunch') || {};
+      const punchInLunch = punchesForDate.find(punch => punch.type === 'Punch In from Lunch') || {};
+      const punchOut = punchesForDate.find(punch => punch.type === 'Punch Out') || {};
+
+      let workedHours = 0;
+      if (punchIn.timestamp && punchOut.timestamp) {
+        const morningHours = punchOutLunch.timestamp ? punchOutLunch.timestamp - punchIn.timestamp : punchOut.timestamp - punchIn.timestamp;
+        const afternoonHours = punchInLunch.timestamp ? punchOut.timestamp - punchInLunch.timestamp : 0;
+        workedHours = (morningHours + afternoonHours) / 1000 / 60 / 60;
       }
 
-      rows.push([employee, date, type, workedHours.toFixed(2)]);
-    }
+      rows.push([employeeData.name, formatDate(date), punchIn.timestamp, punchOutLunch.timestamp, punchInLunch.timestamp, punchOut.timestamp, workedHours.toFixed(2)]);
+    });
   }
 
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
@@ -126,8 +146,8 @@ function generateExcelReport(attendanceData) {
 
 // add event listener to the generate report button
 document.getElementById('generateReport').addEventListener('click', async () => {
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
+  const startDate = document.getElementById('start').value; // changed from startDate to start
+  const endDate = document.getElementById('end').value;
   const employeeSelect = document.getElementById('employeeSelect');
   const employeeIds = Array.from(employeeSelect.selectedOptions, option => parseInt(option.value));
 

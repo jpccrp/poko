@@ -22,7 +22,7 @@ const port = process.env.PORT || 3456;
 // Load environment variables from the .env file
 require('dotenv').config();
 
-console.log('JWT_SECRET:', process.env.JWT_SECRET); // REMOVE LATER
+// console.log('JWT_SECRET:', process.env.JWT_SECRET); // REMOVE LATER
 
 // Serve static files from the 'public' folder
 app.use(express.static('public'));
@@ -192,13 +192,13 @@ app.post('/admin/createUser', authenticateToken, async (req, res) => {
 // Employees route / Reports route get employee information for attendance report
 app.get('/employees', authenticateToken, async (req, res) => {
   const token = req.headers['authorization'];
-  console.log('Received token:', token); // verify token
+  // console.log('Received token:', token); // verify token
   if (!token) {
     return res.status(401).json({ error: 'No token provided.' });
   }
 
   const decoded = verifyToken(token);
-  console.log('Decoded token:', decoded); // verify decoded token
+  // console.log('Decoded token:', decoded); // verify decoded token
 
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid token.' });
@@ -233,6 +233,8 @@ app.post('/attendance', authenticateToken, async (req, res) => {
   const start = parseISO(startDate);
   const end = parseISO(endDate);
 
+  console.log('Fetching attendance for:', { startDate, endDate, employeeIds }); // verify attendance data
+
   const punches = await prisma.punch.findMany({
     where: {
       employeeId: {
@@ -244,6 +246,8 @@ app.post('/attendance', authenticateToken, async (req, res) => {
     },
   });
 
+  console.log('All punches:', punches); // verify all punches
+
   const attendanceData = punches
     .filter(punch => isWithinInterval(parseISO(punch.timestamp), { start, end }))
     .map(punch => ({
@@ -254,6 +258,8 @@ app.post('/attendance', authenticateToken, async (req, res) => {
       note: punch.note,
     }));
 
+  console.log('Filtered attendance data:', attendanceData); // verify attendance data after filtering
+  console.log('Attendance data to send:', attendanceData); // verify attendance data
   res.json(attendanceData);
 });
 
@@ -307,10 +313,10 @@ app.listen(port, () => {
 });
 
 // Test token generation
-const testUser = {
+/* const testUser = {
   id: 1,
   username: 'admin',
   email: 'admin@trevoseguros.co.ao',
 };
 const testToken = generateToken(testUser);
-console.log('Test token:', testToken);
+console.log('Test token:', testToken); */
