@@ -1,3 +1,11 @@
+/* - Get departments from a server when the page loads
+- Display departments in a dropdown
+- When a form is submitted:
+  - Prevent the default form behavior
+  - Get the values entered into the form
+  - Make a request to a server endpoint to create a new user
+  - Handle potential success or error from that request */
+
 const createUserForm = document.getElementById('createUserForm');
 
 async function fetchDepartments() {

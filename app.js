@@ -1,13 +1,13 @@
 // Import required modules
-const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-const path = require('path');
-const { writeFileSync } = require('fs');
-const { tmpdir } = require('os');
-const { join } = require('path');
-const { parseISO, isWithinInterval } = require('date-fns');
+const express = require('express'); // Express is a web application framework for Node.js
+const bcrypt = require('bcrypt'); // bcrypt is a library for hashing passwords
+const jwt = require('jsonwebtoken'); // JSON Web Token library for secure data transmission
+const { PrismaClient } = require('@prisma/client'); // Prisma Client for database operations
+const path = require('path'); // Node.js module for working with file paths
+const { writeFileSync } = require('fs'); // Node.js module for working with the file system
+const { tmpdir } = require('os'); // Node.js module for working with the operating system
+const { join } = require('path'); // Node.js module for joining file paths
+const { parseISO, isWithinInterval } = require('date-fns'); // date-fns is a library for working with dates
 
 
 // Initialize a new PrismaClient instance for database operations
@@ -22,10 +22,12 @@ const port = process.env.PORT || 3456;
 // Load environment variables from the .env file
 require('dotenv').config();
 
+console.log('JWT_SECRET:', process.env.JWT_SECRET); // REMOVE LATER
+
 // Serve static files from the 'public' folder
 app.use(express.static('public'));
 
-//CSS
+// Serve the CSS file with the correct content type header
 app.get('/css/style.css', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/css/style.css'), { headers: { 'Content-Type': 'text/css' } });
 });
@@ -36,10 +38,36 @@ app.get('/css/style.css', (req, res) => {
 app.use(express.json());
 
 
-// I will add my routes and logic here
+// Import utility functions for token generation and verification
 const { generateToken, verifyToken } = require('./utils/auth');
 
-// Login
+
+// authenticateToken middleware function
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  console.log('Received authHeader:', authHeader);
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token provided.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  console.log('Extracted token:', token);
+
+  jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }, (err, decoded) => {
+    if (err) {
+      console.error('Error verifying token:', err);
+      return res.status(401).json({ error: 'Invalid token.' });
+    }
+
+    console.log('Decoded token:', decoded);
+    req.user = decoded;
+    next();
+  });
+}
+
+
+// Login route: authenticate users and provide tokens
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
@@ -63,8 +91,8 @@ app.post('/login', async (req, res) => {
   res.json({ token });
 });
 
-// Protected route 
-app.get('/protected', async (req, res) => {
+// Protected route: requires a valid token to access user data
+app.get('/protected', authenticateToken, async (req, res) => {
   const token = req.headers['authorization'];
 
   if (!token) {
@@ -86,8 +114,8 @@ app.get('/protected', async (req, res) => {
   res.json({ user });
 });
 
-// Populate departments dropdown
-app.get('/admin/departments', async (req, res) => {
+// Populate departments dropdown for admin page
+app.get('/admin/departments', authenticateToken, async (req, res) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader) {
@@ -112,8 +140,8 @@ app.get('/admin/departments', async (req, res) => {
   res.json(departments);
 });
 
-// Create user route
-app.post('/admin/createUser', async (req, res) => {
+// Create user route for admin page
+app.post('/admin/createUser', authenticateToken, async (req, res) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader) {
@@ -161,25 +189,33 @@ app.post('/admin/createUser', async (req, res) => {
 });
 
 
-// Reports route
-app.get('/employees', async (req, res) => {
+// Employees route / Reports route get employee information for attendance report
+app.get('/employees', authenticateToken, async (req, res) => {
   const token = req.headers['authorization'];
-
+  console.log('Received token:', token); // verify token
   if (!token) {
     return res.status(401).json({ error: 'No token provided.' });
   }
 
   const decoded = verifyToken(token);
+  console.log('Decoded token:', decoded); // verify decoded token
 
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid token.' });
   }
 
-  const employees = await prisma.employee.findMany({ select: { id: true, firstName: true, lastName: true } });
-  res.json(employees);
+  try {
+    const employees = await prisma.employee.findMany({ select: { id: true, firstName: true, lastName: true } });
+    console.log('Employees fetched:', employees);
+    res.json(employees);
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    res.status(500).json({ error: 'Failed to fetch employees.' });
+  }
 });
 
-app.post('/attendance', async (req, res) => {
+// Attendance route: get attendance data for the specified date range and employee IDs
+app.post('/attendance', authenticateToken, async (req, res) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader) {
@@ -222,8 +258,8 @@ app.post('/attendance', async (req, res) => {
 });
 
 
-// Punch route
-app.post('/punch', async (req, res) => {
+// Punch route: record a punch for the authenticated user
+app.post('/punch', authenticateToken, async (req, res) => {
   const authHeader = req.headers['authorization'];
   console.log("Received authHeader:", authHeader);
 
@@ -269,3 +305,12 @@ app.post('/punch', async (req, res) => {
 app.listen(port, () => {
   console.log(`Attendance Tracker app listening at http://localhost:${port}`);
 });
+
+// Test token generation
+const testUser = {
+  id: 1,
+  username: 'admin',
+  email: 'admin@trevoseguros.co.ao',
+};
+const testToken = generateToken(testUser);
+console.log('Test token:', testToken);

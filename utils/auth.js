@@ -9,7 +9,8 @@ const generateToken = (user) => {
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: '24h',
+      expiresIn: '2m', // Keep the expiration at 2 minutes
+      algorithm: 'HS256', // Specify the signing algorithm
     }
   );
 
@@ -18,7 +19,8 @@ const generateToken = (user) => {
 
 const verifyToken = (token) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const tokenWithoutBearer = token.replace(/^Bearer\s+/, ''); // Remove the 'Bearer ' prefix
+    const decoded = jwt.verify(tokenWithoutBearer, process.env.JWT_SECRET);
     return decoded;
   } catch (error) {
     return null;

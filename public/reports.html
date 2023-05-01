@@ -7,21 +7,26 @@
   <meta name="description" content="">
   <meta name="author" content="">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="reports">
+  <div class="content-box">
     <h1>Attendance Reports</h1>
-    <label for="startDate">Start Date:</label>
-    <input type="date" id="startDate">
-    <label for="endDate">End Date:</label>
-    <input type="date" id="endDate">
+    <div class="date-range">
+      <label for="start">Start Date:</label>
+      <input type="date" id="start" name="start">
+      <label for="end">End Date:</label>
+      <input type="date" id="end" name="end">
+    </div>
     <label for="employeeSelect">Employees:</label>
     <select id="employeeSelect" multiple>
       <!-- Employee options will be loaded dynamically -->
     </select>
     <button id="generateReport">Generate Report</button>
   </div>
-  <script src="reports.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+  <script type="module" src="reports.js"></script>
 </body>
 </html>
