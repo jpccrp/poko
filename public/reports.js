@@ -1,8 +1,30 @@
+// takes a date as input and returns a formatted string of the date and time. If the input date is not valid or not provided, it returns an empty string.
+function formatDate(date) {
+  if (!date || isNaN(date)) return '';
+  const options = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+  return new Intl.DateTimeFormat('pt-PT', options).format(date);
+}
+
+
+// function to check if the day is the same, for report generation
+function isSameDay(date1, date2) {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+}
 
 // Fetch employee data from the server
 async function fetchEmployees() {
   const token = localStorage.getItem('token');
-  console.log('Token:', token); 
+  // console.log('Token:', token); 
   const response = await fetch('/employees', {
     headers: {
       'Accept': 'application/json',
@@ -10,19 +32,37 @@ async function fetchEmployees() {
     },
   });
 
-  console.log('Fetch employees response:', response); // Added console log to see the response
+  // console.log('Fetch employees response:', response); // Added console log to see the response
 
   if (!response.ok) {
+    console.error('Error status:', response.status); // did it fetch the employees?
     throw new Error('Failed to fetch employees');
   }
 
   return response.json();
 }
 
-// Fetch attendance data for the specified date range and employee IDs
-async function fetchAttendance(startDate, endDate, employeeIds) {
+// This function takes two Date objects, startDate and endDate, and returns an array containing all the dates between them, inclusive
+function generateDateRange(start, end) {
+  const dateRange = [];
+  let currentDate = new Date(start);
+
+  while (currentDate <= end) {
+    dateRange.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return dateRange;
+}
+
+
+
+
+// Fetch attendance data for the specified date range and employee IDs changed startDate to start and endDate to end
+async function fetchAttendance(start, end, employeeIds) {
+  //console.log('Fetch attendance input:', { start, end, employeeIds }); // Add this line to see what the input is
   const token = localStorage.getItem('token');
-  console.log('Token:', token); 
+  //console.log('Token:', token); 
   const response = await fetch('/attendance', {
     method: 'POST',
     headers: {
@@ -30,12 +70,17 @@ async function fetchAttendance(startDate, endDate, employeeIds) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify({ startDate, endDate, employeeIds }),
+    body: JSON.stringify({
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10),
+      employeeIds,
+    }),
   });
 
-  console.log('Fetch attendance response:', response); // Added console log to see the response
+  //console.log('Fetch attendance response:', response); // Added console log to see the response
 
   if (!response.ok) {
+    console.error('Error status:', response.status); // did it fetch the attendance?
     throw new Error('Failed to fetch attendance data');
   }
 
@@ -46,13 +91,13 @@ async function fetchAttendance(startDate, endDate, employeeIds) {
 async function loadEmployees() {
   try {
     const token = localStorage.getItem('token');
-    console.log('Token:', token); 
+    //console.log('Token:', token); 
     if (!token) {
       window.location.href = '/login.html';
       return;
     }
     const employees = await fetchEmployees();
-    console.log(employees);
+    //console.log(employees);
     const employeeSelect = document.getElementById('employeeSelect');
     employees.forEach(employee => {
       const option = document.createElement('option');
@@ -63,19 +108,6 @@ async function loadEmployees() {
   } catch (error) {
     console.error('Error loading employees', error);
   }
-}
-
-// for the excel report: Generate a date range between the provided start and end dates 
-function generateDateRange(start, end) {
-  const result = [];
-  let currentDate = start;
-
-  while (currentDate <= end) {
-    result.push(new Date(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-
-  return result;
 }
 
 // Generate an Excel report using the provided attendance data
@@ -98,7 +130,7 @@ function generateExcelReport(attendanceData) {
     return acc;
   }, {});
 
-  const rows = [['Employee', 'Date', 'Punch In', 'Punch Out for Lunch', 'Punch in from Lunch', 'Punch Out', 'Worked Hours']];
+  const rows = [['Employee', 'Date', 'Punch In', 'Punch Out for Lunch', 'Punch In Lunch', 'Punch Out', 'Worked Hours']];
 
   for (const employee in processedData) {
     const employeeData = processedData[employee];
@@ -108,19 +140,24 @@ function generateExcelReport(attendanceData) {
         isSameDay(new Date(punch.timestamp), date)
       );
 
-      const punchIn = punchesForDate.find(punch => punch.type === 'Punch In') || {};
-      const punchOutLunch = punchesForDate.find(punch => punch.type === 'Punch Out for Lunch') || {};
-      const punchInLunch = punchesForDate.find(punch => punch.type === 'Punch In from Lunch') || {};
-      const punchOut = punchesForDate.find(punch => punch.type === 'Punch Out') || {};
+      if (punchesForDate.length === 0) {
+        // Add a row with empty punches for the missing day
+        rows.push([employeeData.name, formatDate(date), '', '', '', '', '']);
+      } else {
+        const punchIn = punchesForDate.find(punch => punch.type === 'Punch In')?.timestamp || null;
+        const punchOutLunch = punchesForDate.find(punch => punch.type === 'Punch Out for Lunch')?.timestamp || null;
+        const punchInLunch = punchesForDate.find(punch => punch.type === 'Punch In Lunch')?.timestamp || null;
+        const punchOut = punchesForDate.find(punch => punch.type === 'Punch Out')?.timestamp || null;
 
-      let workedHours = 0;
-      if (punchIn.timestamp && punchOut.timestamp) {
-        const morningHours = punchOutLunch.timestamp ? punchOutLunch.timestamp - punchIn.timestamp : punchOut.timestamp - punchIn.timestamp;
-        const afternoonHours = punchInLunch.timestamp ? punchOut.timestamp - punchInLunch.timestamp : 0;
-        workedHours = (morningHours + afternoonHours) / 1000 / 60 / 60;
+        let workedHours = 0;
+        if (punchIn && punchOut) {
+          const morningHours = punchOutLunch ? new Date(punchOutLunch) - new Date(punchIn) : new Date(punchOut) - new Date(punchIn);
+          const afternoonHours = punchInLunch ? new Date(punchOut) - new Date(punchInLunch) : 0;
+          workedHours = (morningHours + afternoonHours) / 1000 / 60 / 60;
+        }
+
+        rows.push([employeeData.name, formatDate(date), formatDate(punchIn), formatDate(punchOutLunch), formatDate(punchInLunch), formatDate(punchOut), workedHours.toFixed(2)]);
       }
-
-      rows.push([employeeData.name, formatDate(date), punchIn.timestamp, punchOutLunch.timestamp, punchInLunch.timestamp, punchOut.timestamp, workedHours.toFixed(2)]);
     });
   }
 
@@ -144,23 +181,27 @@ function generateExcelReport(attendanceData) {
 
 
 
-// add event listener to the generate report button
-document.getElementById('generateReport').addEventListener('click', async () => {
-  const startDate = document.getElementById('start').value; // changed from startDate to start
-  const endDate = document.getElementById('end').value;
-  const employeeSelect = document.getElementById('employeeSelect');
-  const employeeIds = Array.from(employeeSelect.selectedOptions, option => parseInt(option.value));
-
-  try {
-    const attendanceData = await fetchAttendance(startDate, endDate, employeeIds);
-    generateExcelReport(attendanceData);
-  } catch (error) {
-    console.error('Error fetching attendance data', error);
-  }
-});
-// call load employees after the DOM is loaded
+// Add event listener to the generate report button
 document.addEventListener('DOMContentLoaded', () => {
   loadEmployees();
+
+  document.getElementById('generateReport').addEventListener('click', async () => {
+    const startDate = new Date(document.getElementById('startDate').value);
+    const endDate = new Date(document.getElementById('endDate').value);
+    
+    console.log('Fetched startDate and endDate:', { startDate, endDate }); // Added console log to see the response
+
+    const employeeSelect = document.getElementById('employeeSelect');
+    const employeeIds = Array.from(employeeSelect.selectedOptions, option => parseInt(option.value));
+
+    try {
+      const attendanceData = await fetchAttendance(startDate, endDate, employeeIds);
+      generateExcelReport(attendanceData);
+    } catch (error) {
+      console.error('Error fetching attendance data', error);
+    }
+  });
 });
+
 
 

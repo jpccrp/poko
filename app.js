@@ -10,6 +10,7 @@ const { join } = require('path'); // Node.js module for joining file paths
 const { parseISO, isWithinInterval } = require('date-fns'); // date-fns is a library for working with dates
 
 
+
 // Initialize a new PrismaClient instance for database operations
 const prisma = new PrismaClient();
 
@@ -45,14 +46,14 @@ const { generateToken, verifyToken } = require('./utils/auth');
 // authenticateToken middleware function
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  console.log('Received authHeader:', authHeader);
+  // console.log('Received authHeader:', authHeader);
 
   if (!authHeader) {
     return res.status(401).json({ error: 'No token provided.' });
   }
 
   const token = authHeader.split(' ')[1];
-  console.log('Extracted token:', token);
+  //console.log('Extracted token:', token);
 
   jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }, (err, decoded) => {
     if (err) {
@@ -60,7 +61,7 @@ function authenticateToken(req, res, next) {
       return res.status(401).json({ error: 'Invalid token.' });
     }
 
-    console.log('Decoded token:', decoded);
+    //console.log('Decoded token:', decoded);
     req.user = decoded;
     next();
   });
@@ -206,7 +207,7 @@ app.get('/employees', authenticateToken, async (req, res) => {
 
   try {
     const employees = await prisma.employee.findMany({ select: { id: true, firstName: true, lastName: true } });
-    console.log('Employees fetched:', employees);
+    //console.log('Employees fetched:', employees);
     res.json(employees);
   } catch (error) {
     console.error('Error fetching employees:', error);
@@ -214,70 +215,86 @@ app.get('/employees', authenticateToken, async (req, res) => {
   }
 });
 
+
 // Attendance route: get attendance data for the specified date range and employee IDs
 app.post('/attendance', authenticateToken, async (req, res) => {
-  const authHeader = req.headers['authorization'];
+  try {
+    const authHeader = req.headers['authorization'];
 
-  if (!authHeader) {
-    return res.status(401).json({ error: 'No token provided.' });
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No token provided.' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid token.' });
+    }
+
+    const { start: startValue, end: endValue, employeeIds } = req.body;
+
+    // log the received values
+    console.log('Received start and end values:', { startValue, endValue });
+
+    const start = new Date(startValue);
+    const end = new Date(endValue);
+
+    // check if either start or end date is invalid
+  if (isNaN(start) || isNaN(end)) {
+  return res.status(400).json({ error: 'Invalid start or end date.' });
   }
 
-  const token = authHeader.split(' ')[1];
-  const decoded = verifyToken(token);
+    console.log('Fetching attendance for:', { start, end, employeeIds });
 
-  if (!decoded) {
-    return res.status(401).json({ error: 'Invalid token.' });
-  }
-
-  const { startDate, endDate, employeeIds } = req.body;
-  const start = parseISO(startDate);
-  const end = parseISO(endDate);
-
-  console.log('Fetching attendance for:', { startDate, endDate, employeeIds }); // verify attendance data
-
-  const punches = await prisma.punch.findMany({
-    where: {
-      employeeId: {
-        in: employeeIds,
+    const punches = await prisma.punch.findMany({
+      where: {
+        employeeId: {
+          in: employeeIds,
+        },
       },
-    },
-    include: {
-      employee: true,
-    },
-  });
+      include: {
+        employee: true,
+      },
+    });
 
-  console.log('All punches:', punches); // verify all punches
+    //console.log('All punches:', punches);
 
-  const attendanceData = punches
-    .filter(punch => isWithinInterval(parseISO(punch.timestamp), { start, end }))
-    .map(punch => ({
-      id: punch.id,
-      employeeName: `${punch.employee.firstName} ${punch.employee.lastName}`,
-      timestamp: punch.timestamp,
-      type: punch.type,
-      note: punch.note,
-    }));
+    const attendanceData = punches
+    .filter(punch => isWithinInterval(new Date(punch.timestamp), { start: start, end: end }))
+      .map(punch => ({
+        id: punch.id,
+        employeeName: `${punch.employee.firstName} ${punch.employee.lastName}`,
+        timestamp: punch.timestamp,
+        type: punch.type,
+        note: punch.note,
+      }));
 
-  console.log('Filtered attendance data:', attendanceData); // verify attendance data after filtering
-  console.log('Attendance data to send:', attendanceData); // verify attendance data
-  res.json(attendanceData);
+    console.log('Filtered attendance data:', attendanceData);
+    console.log('Attendance data to send:', attendanceData);
+    res.json(attendanceData);
+  } catch (error) {
+    console.error('Error fetching attendance data:', error);
+    res.status(500).json({ error: 'Failed to fetch attendance data.' });
+  }
 });
+
 
 
 // Punch route: record a punch for the authenticated user
 app.post('/punch', authenticateToken, async (req, res) => {
   const authHeader = req.headers['authorization'];
-  console.log("Received authHeader:", authHeader);
+  //console.log("Received authHeader:", authHeader);
 
   if (!authHeader) {
     return res.status(401).json({ error: 'No token provided.' });
   }
 
   const token = authHeader.split(' ')[1];
-  console.log("Extracted token:", token);
+  //console.log("Extracted token:", token);
 
   const decoded = verifyToken(token);
-  console.log("Decoded token:", decoded);
+  //console.log("Decoded token:", decoded);
 
   if (!decoded) {
     return res.status(401).json({ error: 'Invalid token.' });
@@ -309,14 +326,6 @@ app.post('/punch', authenticateToken, async (req, res) => {
 
 // Start the application, listening on the specified port
 app.listen(port, () => {
-  console.log(`Attendance Tracker app listening at http://localhost:${port}`);
+  console.log(`Trevo HRM app listening at http://localhost:${port}`);
 });
 
-// Test token generation
-/* const testUser = {
-  id: 1,
-  username: 'admin',
-  email: 'admin@trevoseguros.co.ao',
-};
-const testToken = generateToken(testUser);
-console.log('Test token:', testToken); */
