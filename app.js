@@ -270,8 +270,8 @@ app.post('/attendance', authenticateToken, async (req, res) => {
         note: punch.note,
       }));
 
-    console.log('Filtered attendance data:', attendanceData);
-    console.log('Attendance data to send:', attendanceData);
+    // console.log('Filtered attendance data:', attendanceData);
+    // console.log('Attendance data to send:', attendanceData);
     res.json(attendanceData);
   } catch (error) {
     console.error('Error fetching attendance data:', error);

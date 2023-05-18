@@ -1,3 +1,5 @@
+
+// ++++++
 // takes a date as input and returns a formatted string of the date and time. If the input date is not valid or not provided, it returns an empty string.
 function formatDate(date) {
   if (!date || isNaN(date)) return '';
@@ -11,7 +13,7 @@ function formatDate(date) {
   return new Intl.DateTimeFormat('pt-PT', options).format(date);
 }
 
-
+// ++++++
 // function to check if the day is the same, for report generation
 function isSameDay(date1, date2) {
   return (
@@ -21,33 +23,41 @@ function isSameDay(date1, date2) {
   );
 }
 
+// ++++++
 // Fetch employee data from the server
 async function fetchEmployees() {
-  const token = localStorage.getItem('token');
-  // console.log('Token:', token); 
-  const response = await fetch('/employees', {
-    headers: {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-
-  // console.log('Fetch employees response:', response); // Added console log to see the response
-
-  if (!response.ok) {
-    console.error('Error status:', response.status); // did it fetch the employees?
-    throw new Error('Failed to fetch employees');
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/login.html';
+      return;
+    }
+    const response = await fetch('/employees', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch employees');
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching employees', error);
+    alert('Failed to fetch employees. Please try again later.');
   }
-
-  return response.json();
 }
 
+// ++++++
 // This function takes two Date objects, startDate and endDate, and returns an array containing all the dates between them, inclusive
-function generateDateRange(start, end) {
+function generateDateRange(startDate, endDate) {
+  if (startDate > endDate) {
+    return [];
+  }
+  
   const dateRange = [];
-  let currentDate = new Date(start);
+  let currentDate = new Date(startDate);
 
-  while (currentDate <= end) {
+  while (currentDate <= endDate) {
     dateRange.push(new Date(currentDate));
     currentDate.setDate(currentDate.getDate() + 1);
   }
@@ -55,11 +65,10 @@ function generateDateRange(start, end) {
   return dateRange;
 }
 
-
-
-
+// ++++++
 // Fetch attendance data for the specified date range and employee IDs changed startDate to start and endDate to end
 async function fetchAttendance(start, end, employeeIds) {
+  try {
   //console.log('Fetch attendance input:', { start, end, employeeIds }); // Add this line to see what the input is
   const token = localStorage.getItem('token');
   //console.log('Token:', token); 
@@ -85,8 +94,13 @@ async function fetchAttendance(start, end, employeeIds) {
   }
 
   return response.json();
+} catch (error) {
+  console.error('Error fetching attendance data:', error);
+  alert('Failed to fetch attendance data. Please try again later.');
+  }
 }
 
+// ++++++
 //load employees to the dropdown 
 async function loadEmployees() {
   try {
@@ -110,6 +124,7 @@ async function loadEmployees() {
   }
 }
 
+// ++++++
 // Generate an Excel report using the provided attendance data
 function generateExcelReport(attendanceData) {
   const workbook = XLSX.utils.book_new();
@@ -118,6 +133,22 @@ function generateExcelReport(attendanceData) {
   const startDate = new Date(document.getElementById('startDate').value);
   const endDate = new Date(document.getElementById('endDate').value);
   const dateRange = generateDateRange(startDate, endDate);
+
+  const firstObject = attendanceData[0];
+  const columnHeaders = Object.keys(firstObject);
+  columnHeaders.unshift('Employee');
+  columnHeaders.push('Worked Hours');
+
+  const rows = [columnHeaders];
+
+
+  // suggested by Cody
+  if (attendanceData.length > 0) {
+    // Generate report
+  } else {
+    alert('No attendance data to generate report'); 
+  }
+  //suggested by Cody
 
   const processedData = attendanceData.reduce((acc, curr) => {
     if (!acc[curr.employeeId]) {
@@ -128,9 +159,7 @@ function generateExcelReport(attendanceData) {
     }
     acc[curr.employeeId].punches.push(curr);
     return acc;
-  }, {});
-
-  const rows = [['Employee', 'Date', 'Punch In', 'Punch Out for Lunch', 'Punch In Lunch', 'Punch Out', 'Worked Hours']];
+  }, {});  
 
   for (const employee in processedData) {
     const employeeData = processedData[employee];
@@ -141,8 +170,7 @@ function generateExcelReport(attendanceData) {
       );
 
       if (punchesForDate.length === 0) {
-        // Add a row with empty punches for the missing day
-        rows.push([employeeData.name, formatDate(date), '', '', '', '', '']);
+        rows.push([employeeData.name, ...Array(columnHeaders.length - 2).fill(''), '']);
       } else {
         const punchIn = punchesForDate.find(punch => punch.type === 'Punch In')?.timestamp || null;
         const punchOutLunch = punchesForDate.find(punch => punch.type === 'Punch Out for Lunch')?.timestamp || null;
@@ -156,16 +184,25 @@ function generateExcelReport(attendanceData) {
           workedHours = (morningHours + afternoonHours) / 1000 / 60 / 60;
         }
 
-        rows.push([employeeData.name, formatDate(date), formatDate(punchIn), formatDate(punchOutLunch), formatDate(punchInLunch), formatDate(punchOut), workedHours.toFixed(2)]);
+        rows.push([employeeData.name, ...punchesForDate.map(punch => formatDate(punch.timestamp)), workedHours.toFixed(2)]);
       }
     });
-  }
+  }  
+
+  
+  //XLSX.writeFile(workbook, `${sheetName}.xlsx`);
 
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  const wbout = XLSX.write(workbook, {bookType:'xlsx',  type: 'array'});
 
-  const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
+  console.log('Workbook created:', workbook);
+  console.log('Worksheet created:', worksheet);
+  console.log('Workbook output:', wbout);
 
+
+// ++++++
+// converts a string to an ArrayBuffer by iterating over each character in the string and getting its ASCII code.
   function s2ab(s) {
     const buf = new ArrayBuffer(s.length);
     const view = new Uint8Array(buf);
@@ -173,14 +210,17 @@ function generateExcelReport(attendanceData) {
     return buf;
   }
 
+
+// ++++++
+// uses the FileSaver.js library to save the ArrayBuffer as an Excel file (xlsx) with a filename including the current date.
   saveAs(
     new Blob([s2ab(wbout)], { type: 'application/octet-stream' }),
     `Attendance_Report_${new Date().toISOString().slice(0, 10)}.xlsx`
   );
+
 }
 
-
-
+// ++++++
 // Add event listener to the generate report button
 document.addEventListener('DOMContentLoaded', () => {
   loadEmployees();
@@ -196,12 +236,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const attendanceData = await fetchAttendance(startDate, endDate, employeeIds);
+      // console.log('Attendance data:', attendanceData); // Added console log to see the response
       generateExcelReport(attendanceData);
     } catch (error) {
       console.error('Error fetching attendance data', error);
     }
   });
 });
+
 
 
 
