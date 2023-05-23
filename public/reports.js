@@ -1,249 +1,143 @@
+//The purpose of this script is to generate attendance reports for employees. 
 
-// ++++++
-// takes a date as input and returns a formatted string of the date and time. If the input date is not valid or not provided, it returns an empty string.
-function formatDate(date) {
-  if (!date || isNaN(date)) return '';
-  const options = {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  };
-  return new Intl.DateTimeFormat('pt-PT', options).format(date);
-}
+// Fetch the token from localStorage
+const token = localStorage.getItem('token');
 
-// ++++++
-// function to check if the day is the same, for report generation
-function isSameDay(date1, date2) {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-}
-
-// ++++++
-// Fetch employee data from the server
+// Fetch the employee data from the server
 async function fetchEmployees() {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      window.location.href = '/login.html';
-      return;
-    }
-    const response = await fetch('/employees', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      }
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch employees');
-    }
-    return response.json();
-  } catch (error) {
-    console.error('Error fetching employees', error);
-    alert('Failed to fetch employees. Please try again later.');
+  const response = await fetch('/employees', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
   }
+
+  const employees = await response.json();
+  return employees;
 }
 
-// ++++++
-// This function takes two Date objects, startDate and endDate, and returns an array containing all the dates between them, inclusive
-function generateDateRange(startDate, endDate) {
-  if (startDate > endDate) {
-    return [];
-  }
-  
-  const dateRange = [];
-  let currentDate = new Date(startDate);
-
-  while (currentDate <= endDate) {
-    dateRange.push(new Date(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-
-  return dateRange;
-}
-
-// ++++++
-// Fetch attendance data for the specified date range and employee IDs changed startDate to start and endDate to end
+// Fetch the attendance data from the server
 async function fetchAttendance(start, end, employeeIds) {
-  try {
-  //console.log('Fetch attendance input:', { start, end, employeeIds }); // Add this line to see what the input is
-  const token = localStorage.getItem('token');
-  //console.log('Token:', token); 
   const response = await fetch('/attendance', {
     method: 'POST',
     headers: {
-      'Accept': 'application/json',
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      start: start.toISOString().slice(0, 10),
-      end: end.toISOString().slice(0, 10),
-      employeeIds,
-    }),
+    body: JSON.stringify({ start, end, employeeIds }),
   });
-
-  //console.log('Fetch attendance response:', response); // Added console log to see the response
 
   if (!response.ok) {
-    console.error('Error status:', response.status); // did it fetch the attendance?
-    throw new Error('Failed to fetch attendance data');
+    throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  return response.json();
-} catch (error) {
-  console.error('Error fetching attendance data:', error);
-  alert('Failed to fetch attendance data. Please try again later.');
-  }
+  const attendance = await response.json();
+  return attendance;
 }
 
-// ++++++
-//load employees to the dropdown 
-async function loadEmployees() {
-  try {
-    const token = localStorage.getItem('token');
-    //console.log('Token:', token); 
-    if (!token) {
-      window.location.href = '/login.html';
-      return;
-    }
-    const employees = await fetchEmployees();
-    //console.log(employees);
-    const employeeSelect = document.getElementById('employeeSelect');
-    employees.forEach(employee => {
-      const option = document.createElement('option');
-      option.value = employee.id;
-      option.textContent = `${employee.firstName} ${employee.lastName}`;
-      employeeSelect.appendChild(option);
-    });
-  } catch (error) {
-    console.error('Error loading employees', error);
+// Convert the report to CSV
+function convertToCSV(report) {
+  // Start with the header row
+  let csv = 'Date,Employee Name,Punch In,Punch Out for Lunch,Punch In Lunch,Punch Out,Total Worked Hours\n';
+
+  // Add each row of the report
+  for (const entry of report) {
+    const punchIn = entry.punches.find(punch => punch.type === 'Punch In')?.timestamp || '';
+    const punchOutForLunch = entry.punches.find(punch => punch.type === 'Punch Out for Lunch')?.timestamp || '';
+    const punchInLunch = entry.punches.find(punch => punch.type === 'Punch In Lunch')?.timestamp || '';
+    const punchOut = entry.punches.find(punch => punch.type === 'Punch Out')?.timestamp || '';
+
+    csv += `${entry.date},${entry.employeeName},${punchIn},${punchOutForLunch},${punchInLunch},${punchOut},${entry.totalHours}\n`;
   }
+
+  return csv;
 }
 
-// ++++++
-// Generate an Excel report using the provided attendance data
-function generateExcelReport(attendanceData) {
-  const workbook = XLSX.utils.book_new();
-  const sheetName = 'Attendance';
+// Download the report as a CSV file
+function downloadCSV(report) {
+  const csv = convertToCSV(report);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  saveAs(blob, 'report.csv');
+}
 
-  const startDate = new Date(document.getElementById('startDate').value);
-  const endDate = new Date(document.getElementById('endDate').value);
-  const dateRange = generateDateRange(startDate, endDate);
+// Generate the report
+async function generateReport() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  const employeeSelect = document.getElementById('employeeSelect');
+  const employeeIds = Array.from(employeeSelect.selectedOptions).map(option => parseInt(option.value));
 
-  const firstObject = attendanceData[0];
-  const columnHeaders = Object.keys(firstObject);
-  columnHeaders.unshift('Employee');
-  columnHeaders.push('Worked Hours');
+  const employees = await fetchEmployees();
+  const attendance = await fetchAttendance(startDate, endDate, employeeIds);
 
-  const rows = [columnHeaders];
+  const report = [];
 
+  // Iterate over each day in the date range
+  for (let date = new Date(startDate); date <= new Date(endDate); date.setDate(date.getDate() + 1)) {
+    // Iterate over each employee
+    for (const employee of employees) {
+      // Find the punch records for this employee on this day
+      const punches = attendance.filter(punch => 
+        new Date(punch.timestamp * 1000).toDateString() === date.toDateString() &&
+        punch.employeeId === employee.id
+      ).sort((a, b) => new Date(a.timestamp * 1000) - new Date(b.timestamp * 1000));
 
-  // suggested by Cody
-  if (attendanceData.length > 0) {
-    // Generate report
-  } else {
-    alert('No attendance data to generate report'); 
-  }
-  //suggested by Cody
-
-  const processedData = attendanceData.reduce((acc, curr) => {
-    if (!acc[curr.employeeId]) {
-      acc[curr.employeeId] = {
-        name: curr.employeeName,
-        punches: [],
-      };
-    }
-    acc[curr.employeeId].punches.push(curr);
-    return acc;
-  }, {});  
-
-  for (const employee in processedData) {
-    const employeeData = processedData[employee];
-
-    dateRange.forEach((date) => {
-      const punchesForDate = employeeData.punches.filter((punch) =>
-        isSameDay(new Date(punch.timestamp), date)
-      );
-
-      if (punchesForDate.length === 0) {
-        rows.push([employeeData.name, ...Array(columnHeaders.length - 2).fill(''), '']);
+      // If there are no punch records for this employee on this day, create an empty entry
+      if (punches.length === 0) {
+        report.push({
+          date: date.toDateString(),
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          punches: [],
+          totalHours: '0h0m',
+        });
       } else {
-        const punchIn = punchesForDate.find(punch => punch.type === 'Punch In')?.timestamp || null;
-        const punchOutLunch = punchesForDate.find(punch => punch.type === 'Punch Out for Lunch')?.timestamp || null;
-        const punchInLunch = punchesForDate.find(punch => punch.type === 'Punch In Lunch')?.timestamp || null;
-        const punchOut = punchesForDate.find(punch => punch.type === 'Punch Out')?.timestamp || null;
-
-        let workedHours = 0;
-        if (punchIn && punchOut) {
-          const morningHours = punchOutLunch ? new Date(punchOutLunch) - new Date(punchIn) : new Date(punchOut) - new Date(punchIn);
-          const afternoonHours = punchInLunch ? new Date(punchOut) - new Date(punchInLunch) : 0;
-          workedHours = (morningHours + afternoonHours) / 1000 / 60 / 60;
-        }
-
-        rows.push([employeeData.name, ...punchesForDate.map(punch => formatDate(punch.timestamp)), workedHours.toFixed(2)]);
+        // Otherwise, create an entry with the punch records
+        const totalHours = calculateTotalHours(punches);
+        report.push({
+          date: date.toDateString(),
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          punches,
+          totalHours,
+        });
       }
-    });
-  }  
-
-  
-  //XLSX.writeFile(workbook, `${sheetName}.xlsx`);
-
-  const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-  const wbout = XLSX.write(workbook, {bookType:'xlsx',  type: 'array'});
-
-  console.log('Workbook created:', workbook);
-  console.log('Worksheet created:', worksheet);
-  console.log('Workbook output:', wbout);
-
-
-// ++++++
-// converts a string to an ArrayBuffer by iterating over each character in the string and getting its ASCII code.
-  function s2ab(s) {
-    const buf = new ArrayBuffer(s.length);
-    const view = new Uint8Array(buf);
-    for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xff;
-    return buf;
+    }
   }
 
-
-// ++++++
-// uses the FileSaver.js library to save the ArrayBuffer as an Excel file (xlsx) with a filename including the current date.
-  saveAs(
-    new Blob([s2ab(wbout)], { type: 'application/octet-stream' }),
-    `Attendance_Report_${new Date().toISOString().slice(0, 10)}.xlsx`
-  );
-
+  downloadCSV(report);
 }
 
-// ++++++
-// Add event listener to the generate report button
-document.addEventListener('DOMContentLoaded', () => {
-  loadEmployees();
+// Calculate the total hours worked based on an array of punch records
+function calculateTotalHours(punches) {
+  let totalMinutes = 0;
 
-  document.getElementById('generateReport').addEventListener('click', async () => {
-    const startDate = new Date(document.getElementById('startDate').value);
-    const endDate = new Date(document.getElementById('endDate').value);
-    
-    console.log('Fetched startDate and endDate:', { startDate, endDate }); // Added console log to see the response
+  for (let i = 0; i < punches.length; i += 2) {
+    const punchIn = new Date(punches[i].timestamp * 1000);
+    const punchOut = punches[i + 1] ? new Date(punches[i + 1].timestamp * 1000) : new Date();
+    const minutesWorked = (punchOut.getTime() - punchIn.getTime()) / 1000 / 60;
+    totalMinutes += minutesWorked;
+  }
 
-    const employeeSelect = document.getElementById('employeeSelect');
-    const employeeIds = Array.from(employeeSelect.selectedOptions, option => parseInt(option.value));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
 
-    try {
-      const attendanceData = await fetchAttendance(startDate, endDate, employeeIds);
-      // console.log('Attendance data:', attendanceData); // Added console log to see the response
-      generateExcelReport(attendanceData);
-    } catch (error) {
-      console.error('Error fetching attendance data', error);
-    }
-  });
+  return `${hours}h${minutes}m`;
+}
+
+// Add an event listener to the "Generate Report" button
+document.getElementById('generateReport').addEventListener('click', generateReport);
+
+// Populate the employee select options when the page loads
+window.addEventListener('load',async () => {
+  const employees = await fetchEmployees();
+  const employeeSelect = document.getElementById('employeeSelect');
+
+  for (const employee of employees) {
+    const option = document.createElement('option');
+    option.value = employee.id;
+    option.text = `${employee.firstName} ${employee.lastName}`;
+    employeeSelect.add(option);
+  }
 });
-
-
-
-
