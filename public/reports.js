@@ -72,18 +72,26 @@ async function generateReport() {
 
   const employees = await fetchEmployees();
   const attendance = await fetchAttendance(startDate, endDate, employeeIds);
+  console.log(attendance) // check API response
 
   const report = [];
 
   // Iterate over each day in the date range
   for (let date = new Date(startDate); date <= new Date(endDate); date.setDate(date.getDate() + 1)) {
+    console.log('Current date:', date.toDateString()); // print our current date each step of the loop
     // Iterate over each employee
     for (const employee of employees) {
+      console.log('Current employee:', employee); // print out current employee object at each step of the loop
       // Find the punch records for this employee on this day
-      const punches = attendance.filter(punch => 
-        new Date(punch.timestamp * 1000).toDateString() === date.toDateString() &&
-        punch.employeeId === employee.id
-      ).sort((a, b) => new Date(a.timestamp * 1000) - new Date(b.timestamp * 1000));
+      const punches = attendance.filter(punch => {
+        const punchDate = new Date(punch.timestamp);
+        const localPunchDate = new Date(punchDate.toLocaleString());
+        return localPunchDate.getFullYear() === date.getFullYear() &&
+          localPunchDate.getMonth() === date.getMonth() &&
+          localPunchDate.getDate() === date.getDate() &&
+          punch.employeeId === employee.id;
+      }).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      console.log('Punches for current date and employee:', punches); // print out the punch array
 
       // If there are no punch records for this employee on this day, create an empty entry
       if (punches.length === 0) {
@@ -114,8 +122,8 @@ function calculateTotalHours(punches) {
   let totalMinutes = 0;
 
   for (let i = 0; i < punches.length; i += 2) {
-    const punchIn = new Date(punches[i].timestamp * 1000);
-    const punchOut = punches[i + 1] ? new Date(punches[i + 1].timestamp * 1000) : new Date();
+    const punchIn = new Date(punches[i].timestamp);
+    const punchOut = punches[i + 1] ? new Date(punches[i + 1].timestamp) : new Date();
     const minutesWorked = (punchOut.getTime() - punchIn.getTime()) / 1000 / 60;
     totalMinutes += minutesWorked;
   }
