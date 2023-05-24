@@ -215,8 +215,7 @@ app.get('/employees', authenticateToken, async (req, res) => {
   }
 });
 
-
-// Attendance route: get attendance data for the specified date range and employee IDs
+// attendance route
 app.post('/attendance', authenticateToken, async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
@@ -234,16 +233,17 @@ app.post('/attendance', authenticateToken, async (req, res) => {
 
     const { start: startValue, end: endValue, employeeIds } = req.body;
 
-    // log the received values
+    // Log the received values
     console.log('Received start and end values:', { startValue, endValue });
+    console.log('Received employeeIds:', employeeIds);
 
     const start = new Date(startValue);
     const end = new Date(endValue);
 
     // check if either start or end date is invalid
-  if (isNaN(start) || isNaN(end)) {
-  return res.status(400).json({ error: 'Invalid start or end date.' });
-  }
+    if (isNaN(start) || isNaN(end)) {
+      return res.status(400).json({ error: 'Invalid start or end date.' });
+    }
 
     console.log('Fetching attendance for:', { start, end, employeeIds });
 
@@ -258,10 +258,11 @@ app.post('/attendance', authenticateToken, async (req, res) => {
       },
     });
 
-    //console.log('All punches:', punches);
+    // Log all punches
+    console.log('All punches:', punches);
 
     const attendanceData = punches
-    .filter(punch => isWithinInterval(new Date(punch.timestamp), { start: start, end: end }))
+      .filter(punch => isWithinInterval(new Date(punch.timestamp), { start: start, end: end }))
       .map(punch => ({
         id: punch.id,
         employeeName: `${punch.employee.firstName} ${punch.employee.lastName}`,
@@ -270,14 +271,16 @@ app.post('/attendance', authenticateToken, async (req, res) => {
         note: punch.note,
       }));
 
-    // console.log('Filtered attendance data:', attendanceData);
-    // console.log('Attendance data to send:', attendanceData);
+    // Log the filtered attendance data
+    console.log('Filtered attendance data:', attendanceData);
+
     res.json(attendanceData);
   } catch (error) {
     console.error('Error fetching attendance data:', error);
     res.status(500).json({ error: 'Failed to fetch attendance data.' });
   }
 });
+
 
 
 

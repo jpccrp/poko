@@ -35,6 +35,7 @@ async function fetchAttendance(start, end, employeeIds) {
   }
 
   const attendance = await response.json();
+  console.log('Attendance data:', attendance); // what's inside attendance
   return attendance;
 }
 
