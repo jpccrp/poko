@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // Define the start and end dates
-const startDate = new Date('2023-01-01');
+const startDate = new Date('2023-05-24');
 const endDate = new Date();
 
 // Define the punch types
@@ -31,11 +31,39 @@ async function generatePunchData(date, employeeId) {
     const timestamp = new Date(date);
     timestamp.setHours([punchInTime, punchOutForLunchTime, punchInLunchTime, punchOutTime][index].getHours());
     timestamp.setMinutes([punchInTime, punchOutForLunchTime, punchInLunchTime, punchOutTime][index].getMinutes());
+    console.log('Original timestamp:', timestamp);
+
+    console.log('UTC timestamp:', new Date(
+  Date.UTC(
+    timestamp.getFullYear(),
+    timestamp.getMonth(),
+    timestamp.getDate(),
+    timestamp.getHours(),
+    timestamp.getMinutes()
+  )
+));
+console.log('ISO format:', new Date(
+  Date.UTC(
+    timestamp.getFullYear(),
+    timestamp.getMonth(),
+    timestamp.getDate(),
+    timestamp.getHours(),
+    timestamp.getMinutes()
+  )
+).toISOString());
 
     await prisma.punch.create({
       data: {
         employeeId,
-        timestamp,
+        timestamp: new Date(
+          Date.UTC(
+            timestamp.getFullYear(),
+            timestamp.getMonth(),
+            timestamp.getDate(),
+            timestamp.getHours(),
+            timestamp.getMinutes()
+          )
+        ).toISOString(),
         type,
       },
     });

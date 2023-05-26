@@ -8,6 +8,7 @@ const { writeFileSync } = require('fs'); // Node.js module for working with the 
 const { tmpdir } = require('os'); // Node.js module for working with the operating system
 const { join } = require('path'); // Node.js module for joining file paths
 const { parseISO, isWithinInterval } = require('date-fns'); // date-fns is a library for working with dates
+const { zonedTimeToUtc, utcToZonedTime } = require('date-fns-tz'); // Import these functions
 
 
 
@@ -239,6 +240,7 @@ app.post('/attendance', authenticateToken, async (req, res) => {
 
     const start = new Date(startValue);
     const end = new Date(endValue);
+   
 
     // check if either start or end date is invalid
     if (isNaN(start) || isNaN(end)) {
@@ -260,16 +262,24 @@ app.post('/attendance', authenticateToken, async (req, res) => {
 
     // Log all punches
     console.log('All punches:', punches);
-
+    console.log('Start date of interval:', start);
+    console.log('End date of interval:', end);
+    // Get the timezone of the client
+    const clientTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const attendanceData = punches
-      .filter(punch => isWithinInterval(new Date(punch.timestamp), { start: start, end: end }))
-      .map(punch => ({
+    .filter(punch => isWithinInterval(new Date(punch.timestamp), { start, end }))
+    .map(punch => {
+      // Convert the punch timestamp to local time for the client
+      const localTimestamp = utcToZonedTime(punch.timestamp, clientTimeZone);
+      
+      return {
         id: punch.id,
         employeeName: `${punch.employee.firstName} ${punch.employee.lastName}`,
-        timestamp: punch.timestamp,
+        timestamp: localTimestamp, // Use local time for timestamp
         type: punch.type,
         note: punch.note,
-      }));
+      };
+    });
 
     // Log the filtered attendance data
     console.log('Filtered attendance data:', attendanceData);
@@ -314,7 +324,7 @@ app.post('/punch', authenticateToken, async (req, res) => {
   const newPunch = await prisma.punch.create({
     data: {
       employeeId: user.id,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(), // store timestamp in UTC
       type,
       note, // estava plural
     },
